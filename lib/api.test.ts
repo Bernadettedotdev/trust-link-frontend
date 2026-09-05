@@ -16,7 +16,8 @@ import {
   upgradeSubscription,
   type VendorNotificationPreferences,
 } from "@/lib/api";
-import { type DisputeStatus,DisputeStatusConst } from "@/types";
+import type { Dispute, Escrow } from "@/types";
+import { type DisputeStatus, DisputeStatusConst } from "@/types";
 
 function mockResponse(
   body: unknown,

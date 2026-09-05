@@ -4,8 +4,8 @@ import { Eye } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { Skeleton } from "@/components/ui/Skeleton";
 import EmailPreview from "@/components/notifications/EmailPreview";
+import { Skeleton } from "@/components/ui/Skeleton";
 import useWallet from "@/hooks/useWallet";
 import {
   getVendorNotificationPreferences,

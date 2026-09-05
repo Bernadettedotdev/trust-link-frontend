@@ -22,7 +22,7 @@ describe("GET /api/escrow", () => {
       { escrowId: "escrow-1", vendor: "Alliance Logistics", orders: 24, status: "Ready" },
     ];
     // Changed to mockResolvedValue because the real API functions are asynchronous
-    vi.mocked(getVendorEscrows).mockResolvedValue(escrowItems as any);
+    vi.mocked(getVendorEscrows).mockResolvedValue(escrowItems as never);
 
     const response = await GET(new Request("https://test.local/escrow"));
     const body = await response.json();

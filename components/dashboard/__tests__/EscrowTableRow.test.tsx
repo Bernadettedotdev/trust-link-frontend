@@ -9,7 +9,6 @@ import EscrowTableRow from "../EscrowTableRow";
 const mockEscrow: Escrow = {
   id: "escrow-1",
   vendorId: "v1",
-  item: "Test Product",
   buyerId: "GBUYER...",
   amount: 100,
   item: "Test Product",
@@ -24,16 +23,11 @@ describe("EscrowTableRow", () => {
     const handleCancel = vi.fn();
 
     render(
-      <table>
-        <tbody>
-          <EscrowTableRow
-            escrow={mockEscrow}
-            onMarkShipped={vi.fn()}
-            onCancelEscrow={handleCancel}
-            onMarkShipped={handleCopy}
-          />
-        </tbody>
-      </table>
+      <EscrowTableRow
+        escrow={mockEscrow}
+        onMarkShipped={vi.fn()}
+        onCancelEscrow={handleCancel}
+      />
     );
 
     const cancelButton = screen.getByRole("button", { name: /Cancel/i });
@@ -49,16 +43,11 @@ describe("EscrowTableRow", () => {
     const activeEscrow = { ...mockEscrow, status: "FUNDED" as const };
 
     render(
-      <table>
-        <tbody>
-          <EscrowTableRow
-            escrow={activeEscrow}
-            onMarkShipped={vi.fn()}
-            onCancelEscrow={handleCancel}
-            onMarkShipped={handleCopy}
-          />
-        </tbody>
-      </table>
+      <EscrowTableRow
+        escrow={activeEscrow}
+        onMarkShipped={vi.fn()}
+        onCancelEscrow={handleCancel}
+      />
     );
 
     expect(screen.queryByRole("button", { name: /Cancel/i })).not.toBeInTheDocument();

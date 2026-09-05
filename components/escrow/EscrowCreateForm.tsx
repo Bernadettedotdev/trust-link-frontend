@@ -1,11 +1,13 @@
 "use client";
 
 import { type FormEvent, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import ShareModal from "@/components/escrow/ShareModal";
 import { FormField } from "@/components/ui/FormField";
 import { QrCode } from "@/components/ui/QrCode";
 import { createEscrow, type EscrowInput } from "@/lib/api";
+import { renderMarkdown } from "@/lib/markdown";
 import {
   EscrowCreateSchema,
   EscrowCreateValues,
@@ -109,59 +111,6 @@ export default function EscrowCreateForm() {
     if (!canvas || !resultUrl) return;
     // PNG export handled by the shared QrCode component
     toast.success("QR code downloaded");
-  };
-
-  return (
-    <div className="mx-auto w-full max-w-xl px-4 py-10">
-      <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">Create escrow link</h1>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Fill in the item details, then share the generated escrow link with your buyer.
-      </p>
-
-      <form className="mt-8 space-y-5" onSubmit={onSubmit}>
-      track("link_created");
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unexpected error creating the link.";
-      setSubmitError(message);
-      toast.error(message);
-    } finally {
-      setIsSubmitting(false);
-      submittingRef.current = false;
-    }
-  };
-
-  const downloadQR = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !resultUrl) return;
-    const svgEl = document.querySelector<SVGSVGElement>(
-      '[data-testid="qr-code"]'
-    );
-    if (!svgEl) return;
-    const svgData = new XMLSerializer().serializeToString(svgEl);
-    const svgBlob = new Blob([svgData], {
-      type: "image/svg+xml;charset=utf-8",
-    });
-    const url = URL.createObjectURL(svgBlob);
-    const img = new Image();
-    img.onload = () => {
-      canvas.width = 192;
-      canvas.height = 192;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0, 192, 192);
-      URL.revokeObjectURL(url);
-      const escrowId = resultUrl.split("/").pop() || "escrow";
-      const pngUrl = canvas.toDataURL("image/png");
-      const a = document.createElement("a");
-      a.href = pngUrl;
-      a.download = `escrow_${escrowId}.png`;
-      a.click();
-      toast.success("QR code downloaded");
-    };
-    img.src = url;
   };
 
   return (

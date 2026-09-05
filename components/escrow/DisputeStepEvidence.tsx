@@ -16,6 +16,9 @@ function isImageFile(file: File): boolean {
   return IMAGE_MIME_TYPES.includes(file.type);
 }
 
+const inputClass =
+  "w-full rounded border border-zinc-300 bg-white p-2.5 text-base text-foreground outline-none transition focus:border-success dark:border-zinc-700 dark:bg-zinc-900";
+
 export function DisputeStepEvidence({ formData, errors, handleFileUpload, removeFile }: Props) {
   const [previewUrls, setPreviewUrls] = useState<Record<number, string>>({});
 
@@ -26,6 +29,7 @@ export function DisputeStepEvidence({ formData, errors, handleFileUpload, remove
         newUrls[index] = URL.createObjectURL(file);
       }
     });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPreviewUrls(newUrls);
 
     return () => {
@@ -57,7 +61,7 @@ export function DisputeStepEvidence({ formData, errors, handleFileUpload, remove
 
       {formData.files.length > 0 && (
         <div className="mb-5">
-          <h4 className="mb-2 font-semibold text-foreground">Uploaded Files:</h4>
+          <h3 className="mb-2 font-semibold text-foreground">Uploaded Files:</h3>
           <ul className="list-none space-y-2 p-0">
             {formData.files.map((file, index) => (
               <li

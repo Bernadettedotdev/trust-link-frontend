@@ -2,11 +2,17 @@ import { NextRequest } from "next/server";
 import { beforeEach,describe, expect, it } from "vitest";
 
 import { __resetRateLimitMemory } from "@/lib/rateLimit";
+import { EscrowCreateSchema } from "@/lib/validations/escrow";
 
 import { PATCH } from "./[id]/ship/route";
 import { GET } from "./route";
 import * as EscrowRoute from "./route";
-import { EscrowCreateSchema } from "@/lib/validations/escrow";
+
+vi.mock("@/lib/api", () => ({
+  getVendorEscrows: vi.fn().mockResolvedValue([
+    { escrowId: "escrow-1", status: "PENDING" }
+  ])
+}));
 
 // POST may not be exported yet on this branch — handle gracefully so the
 // integration suite still loads and the new tests are discoverable for review.
@@ -18,6 +24,13 @@ const itWithPost = POST ? it : it.skip;
 describe("API Route Integration Tests: Escrow & Shipping", () => {
   beforeEach(() => {
     __resetRateLimitMemory();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ([
+        { escrowId: "escrow-1", vendor: "v1", orders: 1, status: "PENDING" }
+      ]),
+      text: async () => "{}"
+    }) as typeof fetch;
   });
 
   describe("GET /escrow Integration", () => {

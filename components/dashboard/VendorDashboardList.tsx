@@ -9,7 +9,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useRef,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -58,15 +57,12 @@ export default function VendorDashboardList({
   const [selectedEscrow, setSelectedEscrow] = useState<Escrow | null>(null);
   const [escrowToCancel, setEscrowToCancel] = useState<Escrow | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    try {
-      const saved = window.localStorage.getItem(VIEW_PREF_KEY);
-      if (saved === "card" || saved === "table") return saved;
   const [viewMode, setViewMode] = useState<ViewMode>("card");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const { formatAmount } = useCurrency();
@@ -84,9 +80,7 @@ export default function VendorDashboardList({
     } catch {
       // ignore - localStorage unavailable
     }
-    return "card";
-  });
-  const { formatAmount } = useCurrency();
+  }, []);
 
   // Persist view preference
   useEffect(() => {
@@ -211,7 +205,7 @@ export default function VendorDashboardList({
         err instanceof Error ? err : new Error(t("dashboard.loadEscrowsError"))
       );
     }
-  , [t]);
+  }, [t]);
 
   useEffect(() => {
     startTransition(() => loadItems());
@@ -287,7 +281,7 @@ export default function VendorDashboardList({
     toast.success(
       t("dashboard.exportSelectedSuccess", { count: selectedCount })
     );
-  }, [selectedCount, selectedEscrows, getCsvColumns]);
+  }, [selectedCount, selectedEscrows, getCsvColumns, t]);
 
   const selectAllCheckbox = (id: string) => (
     <input
@@ -337,8 +331,6 @@ export default function VendorDashboardList({
   if (escrows.length === 0) {
     return <EmptyVendorState />;
   }
-
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex = index;

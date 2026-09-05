@@ -25,34 +25,23 @@ export function DisputeStepDetails({ formData, errors, updateField }: Props) {
       >
         <select
           id="reason"
-          label="Reason for Dispute *"
-          error={errors.reason}
+          value={formData.reason}
+          onChange={(e) => updateField("reason", e.target.value)}
+          aria-label="reason"
+          className={inputClass}
         >
-          <select
-            id="reason"
-            value={formData.reason}
-            onChange={(e) => updateField("reason", e.target.value)}
-            aria-label="reason"
-          >
-            <option value="">Select a reason</option>
-            <option value="product_not_received">Product not received</option>
-            <option value="damaged_product">Damaged product</option>
-            <option value="wrong_product">Wrong product received</option>
-            <option value="defective_product">Defective product</option>
-            <option value="billing_error">Billing error</option>
-          </select>
-        </FormField>
+          <option value="">Select a reason</option>
+          <option value="product_not_received">Product not received</option>
+          <option value="damaged_product">Damaged product</option>
+          <option value="wrong_product">Wrong product received</option>
+          <option value="defective_product">Defective product</option>
+          <option value="billing_error">Billing error</option>
+        </select>
+      </FormField>
       </div>
 
       <div className="form-group">
-       
-      <FormField
-        id="description"
-        label="Description *"
-        error={errors.description}
-        hint={`${formData.description.length}/20 characters minimum`}
-      >
-        <textarea
+        <FormField
           id="description"
           label="Description *"
           error={errors.description}
@@ -65,6 +54,7 @@ export function DisputeStepDetails({ formData, errors, updateField }: Props) {
             rows={5}
             placeholder="Please provide detailed information about your dispute (minimum 20 characters)"
             aria-label="description"
+            className={inputClass}
           />
         </FormField>
       </div>

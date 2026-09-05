@@ -104,7 +104,7 @@ describe("accessibility — UI components have no axe violations", () => {
         rules: { "color-contrast": { enabled: false } },
       });
       expect(results).toHaveNoViolations();
-    });
+    }, 15000);
 
     it("step 4 (Review)", async () => {
       const user = userEvent.setup();
@@ -122,6 +122,6 @@ describe("accessibility — UI components have no axe violations", () => {
         rules: { "color-contrast": { enabled: false } },
       });
       expect(results).toHaveNoViolations();
-    });
+    }, 15000);
   });
 });

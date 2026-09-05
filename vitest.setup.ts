@@ -3,6 +3,7 @@ import "@/lib/i18n";
 
 import { vi } from "vitest";
 
+process.env.NEXT_PUBLIC_API_URL = "http://localhost:3000/api";
 // jsdom + Node `--localstorage-file` yields a broken localStorage stub that
 // lacks clear()/key(), so provide a full in-memory polyfill for tests.
 class LocalStorageMock {

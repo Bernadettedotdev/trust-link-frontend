@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
+
+import ErrorBoundary from '@/components/layout/ErrorBoundary';
 
 interface RouteErrorProps {
   error: Error & { digest?: string };
@@ -16,7 +17,7 @@ export default function RouteGroupErrorBoundary({ error, reset }: RouteErrorProp
 
   return (
     <div className="flex min-h-[400px] w-full flex-col items-center justify-center p-6 text-center">
-      <ErrorBoundary error={error}>
+      <ErrorBoundary>
         <div className="mt-4">
           <button
             onClick={() => reset()}

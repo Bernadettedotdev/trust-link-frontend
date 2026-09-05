@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 
-
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
-
 import FetchErrorState, { getFetchErrorMessage } from "@/components/ui/FetchErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import useEscrow from "@/hooks/useEscrow";
