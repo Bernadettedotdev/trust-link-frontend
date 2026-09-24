@@ -61,10 +61,23 @@ export default function TransactionHistoryExport({
     }
   };
 
+  /**
+   * Keyboard event handler to trigger export on Enter or Space.
+   * @param e - The keyboard event.
+   */
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>): void => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      void handleExportPDF();
+    }
+  };
+
   return (
     <button
       onClick={() => void handleExportPDF()}
+      onKeyDown={handleKeyDown}
       disabled={isExporting || escrows.length === 0}
+      tabIndex={0}
       className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
       title={t("dashboard.pdfExport.title")}
     >
