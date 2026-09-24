@@ -6,14 +6,28 @@ import { useTranslation } from "react-i18next";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { shipEscrow } from "@/lib/api";
 
+/**
+ * Props for the ShipTrackingModal component.
+ */
 interface ShipTrackingModalProps {
+  /** The unique identifier of the escrow to be shipped. */
   escrowId: string;
+  /** The name of the vendor shipping the item. */
   vendorName: string;
+  /** Whether the modal is currently open. */
   open: boolean;
+  /** Callback triggered when the modal should be closed. */
   onClose: () => void;
+  /** Callback triggered upon successful shipment submission. */
   onSuccess: (escrowId: string) => void;
 }
 
+/**
+ * A modal dialog that allows vendors to input shipping tracking information.
+ *
+ * @param {ShipTrackingModalProps} props - The component properties.
+ * @returns {React.ReactElement | null} The ship tracking modal or null if not open.
+ */
 export default function ShipTrackingModal({
   escrowId,
   vendorName,
