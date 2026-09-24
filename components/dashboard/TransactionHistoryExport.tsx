@@ -1,7 +1,7 @@
 "use client";
 
 import { FileDown } from "lucide-react";
-import type React from "react";
+import type { KeyboardEvent } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -65,7 +65,7 @@ export default function TransactionHistoryExport({
    * Keyboard event handler to trigger export on Enter or Space.
    * @param e - The keyboard event.
    */
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>): void => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>): void => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       void handleExportPDF();
