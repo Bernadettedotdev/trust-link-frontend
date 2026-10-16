@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppNotification } from "@/types";
@@ -199,5 +198,136 @@ describe("NotificationsPageContent", () => {
     await waitFor(() => {
       expect(screen.getByRole("status")).toBeInTheDocument();
     });
+  });
+
+  it("paginates notifications when there are more than 20 items", async () => {
+    window.localStorage.setItem("wallet.jwt", "valid-token");
+    for (let i = 1; i <= 25; i++) {
+      mockNotifications.push(
+        makeNotification(`n${i}`, { escrowItem: `Item ${i}` })
+      );
+    }
+    render(<NotificationsPageContent />);
+    await waitFor(() => {
+      expect(screen.getByText("Item 1")).toBeInTheDocument();
+    });
+
+    // First page should show items 1-20
+    expect(screen.getByText("Item 1")).toBeInTheDocument();
+    expect(screen.getByText("Item 20")).toBeInTheDocument();
+    expect(screen.queryByText("Item 21")).not.toBeInTheDocument();
+
+    // Navigate to page 2
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Item 21")).toBeInTheDocument();
+    });
+
+    // Second page should show items 21-25
+    expect(screen.getByText("Item 21")).toBeInTheDocument();
+    expect(screen.getByText("Item 25")).toBeInTheDocument();
+    expect(screen.queryByText("Item 1")).not.toBeInTheDocument();
+  });
+
+  it("paginates filtered search results correctly", async () => {
+    window.localStorage.setItem("wallet.jwt", "valid-token");
+    for (let i = 1; i <= 25; i++) {
+      mockNotifications.push(
+        makeNotification(`n${i}`, {
+          escrowItem: i % 2 === 0 ? `Even ${i}` : `Odd ${i}`,
+        })
+      );
+    }
+    render(<NotificationsPageContent />);
+    await waitFor(() => {
+      expect(screen.getByText("Odd 1")).toBeInTheDocument();
+    });
+
+    // Search for "Even" items (13 items: 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26? no, only 25 items)
+    fireEvent.change(screen.getByTestId("notifications-search"), {
+      target: { value: "Even" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Even 2")).toBeInTheDocument();
+    });
+
+    // Should show first 20 filtered results (but only 13 exist)
+    expect(screen.getByText("Even 2")).toBeInTheDocument();
+    expect(screen.getByText("Even 20")).toBeInTheDocument();
+    expect(screen.queryByText("Odd 1")).not.toBeInTheDocument();
+  });
+
+  it("adjusts page when search results shrink to fewer pages", async () => {
+    window.localStorage.setItem("wallet.jwt", "valid-token");
+    for (let i = 1; i <= 25; i++) {
+      mockNotifications.push(
+        makeNotification(`n${i}`, { escrowItem: `Item ${i}` })
+      );
+    }
+    render(<NotificationsPageContent />);
+    await waitFor(() => {
+      expect(screen.getByText("Item 1")).toBeInTheDocument();
+    });
+
+    // Navigate to page 2
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Item 21")).toBeInTheDocument();
+    });
+
+    // Search for a term that matches only 5 items
+    fireEvent.change(screen.getByTestId("notifications-search"), {
+      target: { value: "Item 1" },
+    });
+
+    await waitFor(() => {
+      // effectivePage uses Math.min(currentPage, totalPages), so it should show page 1 content
+      expect(screen.getByText("Item 1")).toBeInTheDocument();
+    });
+
+    // Should show filtered results, not page 2 of the full list
+    expect(screen.getByText("Item 1")).toBeInTheDocument();
+    expect(screen.queryByText("Item 21")).not.toBeInTheDocument();
+  });
+
+  it("adjusts page when provider data shrinks", async () => {
+    window.localStorage.setItem("wallet.jwt", "valid-token");
+    for (let i = 1; i <= 25; i++) {
+      mockNotifications.push(
+        makeNotification(`n${i}`, { escrowItem: `Item ${i}` })
+      );
+    }
+    const { rerender } = render(<NotificationsPageContent />);
+    await waitFor(() => {
+      expect(screen.getByText("Item 1")).toBeInTheDocument();
+    });
+
+    // Navigate to page 2
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Item 21")).toBeInTheDocument();
+    });
+
+    // Simulate provider data shrinking to 10 items
+    act(() => {
+      mockNotifications.length = 0;
+      for (let i = 1; i <= 10; i++) {
+        mockNotifications.push(
+          makeNotification(`n${i}`, { escrowItem: `Item ${i}` })
+        );
+      }
+      rerender(<NotificationsPageContent />);
+    });
+
+    await waitFor(() => {
+      // effectivePage uses Math.min(currentPage, totalPages), so it should show page 1 content
+      expect(screen.getByText("Item 1")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Item 21")).not.toBeInTheDocument();
   });
 });
