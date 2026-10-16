@@ -1,12 +1,34 @@
 import { sanitizeCsvCell } from "@/lib/sanitize";
 
+const CSV_EXTENSION = ".csv";
+// UTF-8 byte-order mark. Excel needs this to sniff the encoding; without it it
+// assumes the system codepage and mangles non-ASCII characters.
+const UTF8_BOM = "\uFEFF";
+
+/**
+ * Ensure a download name ends in `.csv`. The generic helper should never hand
+ * the browser a file it cannot infer the format of, so the extension is forced
+ * even when the caller omits it.
+ */
+export function ensureCsvExtension(filename: string): string {
+  return filename.toLowerCase().endsWith(CSV_EXTENSION)
+    ? filename
+    : `${filename}${CSV_EXTENSION}`;
+}
+
 /**
  * Convert an array of objects to a CSV string and trigger a browser download.
+ *
+ * The output is RFC 4180-compliant: rows are joined with CRLF, cells containing
+ * a comma, quote, LF or CR are quoted, embedded quotes are doubled, and a UTF-8
+ * BOM is prepended so Excel reads non-ASCII text correctly.
  *
  * @param rows    - Array of plain objects to serialise.
  * @param columns - Ordered list of { key, header } pairs that control which
  *                  fields appear and what the column headers are called.
- * @param filename - Name of the downloaded file (should end with `.csv`).
+ * @param filename - Name of the downloaded file (`.csv` is appended if missing).
+ * @returns Nothing. No-op (rather than throwing) when called during SSR, where
+ *          there is no DOM to attach the download to.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function downloadCsv<T extends Record<string, any>>(
@@ -14,13 +36,19 @@ export function downloadCsv<T extends Record<string, any>>(
   columns: { key: keyof T; header: string }[],
   filename: string
 ): void {
-  // Enforce .csv extension
-  const csvFilename = filename.endsWith(".csv") ? filename : `${filename}.csv`;
+  if (rows.length === 0) return;
+
   const escape = (value: unknown): string => {
     // Neutralise spreadsheet formula injection before quoting.
     const str = sanitizeCsvCell(value);
-    // Wrap in quotes if the value contains a comma, quote, newline, or carriage return
-    if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    // Quote when the value contains a comma, quote, or any line break. A bare
+    // CR must be quoted too, otherwise Excel splits the row on it.
+    if (
+      str.includes(",") ||
+      str.includes('"') ||
+      str.includes("\n") ||
+      str.includes("\r")
+    ) {
       return `"${str.replace(/"/g, '""')}"`;
     }
     return str;
@@ -31,20 +59,22 @@ export function downloadCsv<T extends Record<string, any>>(
     columns.map((c) => escape(row[c.key])).join(",")
   );
 
-  // Use CRLF line endings for proper Excel compatibility and add UTF-8 BOM
-  const csvContent = "\uFEFF" + [headerRow, ...dataRows].join("\r\n");
+  const csvContent = [headerRow, ...dataRows].join("\r\n");
 
-  // Guard against SSR context where document/URL may not be available
+  // Browser-only from here on: creating a blob URL and clicking an anchor has
+  // no meaning during server rendering, so bail out instead of throwing.
   if (typeof window === "undefined" || typeof document === "undefined") {
-    throw new Error("downloadCsv can only be called in a browser environment");
+    return;
   }
 
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([UTF8_BOM + csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement("a");
   link.href = url;
-  link.download = csvFilename;
+  link.download = ensureCsvExtension(filename);
   link.style.display = "none";
   document.body.appendChild(link);
   link.click();

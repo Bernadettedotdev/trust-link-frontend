@@ -1,47 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { requireAuth } from "@/lib/auth";
 import { shipEscrow } from "@/lib/escrowStore";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rateLimit";
 
-// Validation schema for ship request
-const ShipRequestSchema = z.object({
-  trackingId: z.string().trim().min(1, "Tracking ID is required").max(64, "Tracking ID must be 64 characters or less"),
-  carrier: z.string().trim().min(1, "Carrier is required").max(50, "Carrier must be 50 characters or less").optional().default("Other"),
-});
+const ShipEscrowSchema = z
+  .object({
+    // `preprocess` maps a missing/non-string value to "" so the failure surfaces
+    // the user-facing "required" message instead of zod's type error.
+    trackingId: z.preprocess(
+      (value) => (value === undefined || value === null ? "" : value),
+      z
+        .string()
+        .trim()
+        .min(1, "Tracking ID is required.")
+        .max(64, "Tracking ID must be 64 characters or less.")
+    ),
+    carrier: z.string().trim().min(1).max(100).optional(),
+  })
+  .strict();
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const limited = await enforceRateLimit(request, RATE_LIMITS.ship.limit, RATE_LIMITS.ship.windowMs);
+  const limited = await enforceRateLimit(
+    request,
+    RATE_LIMITS.escrowWrite.limit,
+    RATE_LIMITS.escrowWrite.windowMs
+  );
   if (limited) return limited;
 
-  const body = await request.json().catch(() => null);
-  if (!body) {
-    return NextResponse.json({ message: "Invalid request body." }, { status: 400 });
-  }
+  const auth = requireAuth(request);
+  if (!auth.ok) return auth.response;
 
-  const validation = ShipRequestSchema.safeParse(body);
-  if (!validation.success) {
-    const errors = validation.error.flatten().fieldErrors;
-    // For backwards compatibility with existing tests, return simple message for known fields
-    if (errors.trackingId) {
-      return NextResponse.json({ message: errors.trackingId[0] }, { status: 400 });
-    }
+  const body = await request.json().catch(() => null);
+  const parsed = ShipEscrowSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { message: "Validation failed", errors },
+      { message: parsed.error.issues[0]?.message ?? "Invalid request." },
       { status: 400 }
     );
   }
 
-  const { trackingId, carrier } = validation.data;
   const { id } = await params;
 
   try {
-    const shippedItem = shipEscrow(id, trackingId, carrier);
+    const shippedItem = shipEscrow(
+      id,
+      parsed.data.trackingId,
+      parsed.data.carrier ?? "Other"
+    );
     return NextResponse.json(shippedItem);
   } catch (error) {
-    return NextResponse.json({ message: error instanceof Error ? error.message : "Unable to ship escrow." }, { status: 404 });
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Unable to ship escrow." },
+      { status: 404 }
+    );
   }
 }

@@ -3,6 +3,7 @@ import { beforeEach,describe, expect, it } from "vitest";
 
 import { __resetRateLimitMemory } from "@/lib/rateLimit";
 import { EscrowCreateSchema } from "@/lib/validations/escrow";
+import { authHeader, MALFORMED_TOKEN, VALID_JWT } from "@/tests/support/jwt";
 
 import { PATCH } from "./[id]/ship/route";
 import { GET } from "./route";
@@ -11,7 +12,10 @@ import * as EscrowRoute from "./route";
 vi.mock("@/lib/api", () => ({
   getVendorEscrows: vi.fn().mockResolvedValue([
     { escrowId: "escrow-1", status: "PENDING" }
-  ])
+  ]),
+  createEscrow: vi.fn().mockResolvedValue({
+    url: "https://trustlink.example.com/escrow/escrow-1",
+  }),
 }));
 
 // POST may not be exported yet on this branch — handle gracefully so the
@@ -35,7 +39,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
 
   describe("GET /escrow Integration", () => {
     it("returns 200 OK with array of escrow items", async () => {
-      const request = new Request("http://localhost/escrow");
+      const request = new Request("http://localhost/escrow", { headers: authHeader() });
       const response = await GET(request);
 
       expect(response.status).toBe(200);
@@ -50,7 +54,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
 
     it("returns 429 Too Many Requests when rate limit is exceeded", async () => {
       const request = new Request("http://localhost/escrow", {
-        headers: { "x-forwarded-for": "192.168.1.100" },
+        headers: { "x-forwarded-for": "192.168.1.100", ...authHeader() },
       });
 
       // Fire 20 allowed requests
@@ -67,6 +71,17 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
       const body = await rateLimitedRes.json();
       expect(body.message).toContain("Too many requests");
     });
+
+    it("returns 401 Unauthorized without a bearer token", async () => {
+      const request = new Request("http://localhost/escrow", {
+        headers: { "x-forwarded-for": "192.168.1.101" },
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(401);
+      const body = await response.json();
+      expect(body.message).toMatch(/unauthorized|auth|token|bearer/i);
+    });
   });
 
   describeWithPost("POST /escrow Integration — successful creation", () => {
@@ -82,7 +97,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer valid-test-token",
+          Authorization: `Bearer ${VALID_JWT}`,
           "x-forwarded-for": "10.0.0.1",
         },
         body: JSON.stringify(validPayload),
@@ -105,7 +120,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer valid-test-token",
+          Authorization: `Bearer ${VALID_JWT}`,
           "x-forwarded-for": "10.0.0.2",
         },
         body: JSON.stringify(validPayload),
@@ -131,7 +146,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer valid-test-token",
+          Authorization: `Bearer ${VALID_JWT}`,
           "x-forwarded-for": "10.0.0.10",
         },
         body: JSON.stringify(payloadWithoutName),
@@ -149,7 +164,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer valid-test-token",
+          Authorization: `Bearer ${VALID_JWT}`,
           "x-forwarded-for": "10.0.0.11",
         },
         body: JSON.stringify(payloadWithoutPrice),
@@ -166,7 +181,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer valid-test-token",
+          Authorization: `Bearer ${VALID_JWT}`,
           "x-forwarded-for": "10.0.0.12",
         },
         body: JSON.stringify({ ...basePayload, priceUSDC: "-5" }),
@@ -183,7 +198,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer valid-test-token",
+          Authorization: `Bearer ${VALID_JWT}`,
           "x-forwarded-for": "10.0.0.13",
         },
         body: JSON.stringify({ ...basePayload, priceUSDC: "abc" }),
@@ -200,7 +215,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer valid-test-token",
+          Authorization: `Bearer ${VALID_JWT}`,
           "x-forwarded-for": "10.0.0.14",
         },
         body: JSON.stringify({ ...basePayload, priceUSDC: "0" }),
@@ -216,7 +231,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer valid-test-token",
+          Authorization: `Bearer ${VALID_JWT}`,
           "x-forwarded-for": "10.0.0.15",
         },
         body: JSON.stringify(payloadWithoutDesc),
@@ -233,7 +248,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer valid-test-token",
+          Authorization: `Bearer ${VALID_JWT}`,
           "x-forwarded-for": "10.0.0.16",
         },
         body: JSON.stringify({ ...basePayload, shippingWindow: "INVALID" }),
@@ -288,7 +303,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer invalid-token-xyz",
+          Authorization: `Bearer ${MALFORMED_TOKEN}`,
           "x-forwarded-for": "10.0.0.22",
         },
         body: JSON.stringify(validPayload),
@@ -374,7 +389,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
     it("returns 400 Bad Request when trackingId is missing", async () => {
       const request = new Request("http://localhost/escrow/escrow-1/ship", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ carrier: "FedEx" }),
       }) as NextRequest;
 
@@ -390,7 +405,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
       const longTrackingId = "A".repeat(65);
       const request = new Request("http://localhost/escrow/escrow-1/ship", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ trackingId: longTrackingId }),
       }) as NextRequest;
 
@@ -405,7 +420,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
     it("successfully ships an escrow item and updates status to Shipped", async () => {
       const request = new Request("http://localhost/escrow/escrow-1/ship", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ trackingId: "TRK-987654", carrier: "DHL Express" }),
       }) as NextRequest;
 
@@ -423,7 +438,7 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
     it("returns 404 Not Found when attempting to ship a non-existent escrow", async () => {
       const request = new Request("http://localhost/escrow/non-existent-id/ship", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ trackingId: "TRK-000000" }),
       }) as NextRequest;
 
@@ -433,6 +448,21 @@ describe("API Route Integration Tests: Escrow & Shipping", () => {
       expect(response.status).toBe(404);
       const body = await response.json();
       expect(body.message).toBe("Escrow item not found.");
+    });
+
+    it("returns 401 Unauthorized without a bearer token", async () => {
+      const request = new Request("http://localhost/escrow/escrow-1/ship", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trackingId: "TRK-000001" }),
+      }) as NextRequest;
+
+      const params = Promise.resolve({ id: "escrow-1" });
+      const response = await PATCH(request, { params });
+
+      expect(response.status).toBe(401);
+      const body = await response.json();
+      expect(body.message).toMatch(/unauthorized|auth|token|bearer/i);
     });
   });
 });

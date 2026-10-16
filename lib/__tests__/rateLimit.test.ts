@@ -5,6 +5,9 @@ import {
   checkRateLimit,
   enforceRateLimit,
   getClientId,
+  getRateLimitKey,
+  isValidIp,
+  RATE_LIMITS,
 } from "@/lib/rateLimit";
 
 // These tests exercise the in-memory fallback (no UPSTASH_* env configured),
@@ -55,6 +58,72 @@ describe("getClientId", () => {
       headers: { "x-forwarded-for": "1.1.1.1" },
     });
     expect(getClientId(r)).toBe("1.1.1.1");
+  });
+
+  it("ignores spoofed, non-IP x-forwarded-for values", () => {
+    const r = new Request("https://x.test", {
+      headers: { "x-forwarded-for": "not-an-ip, also-bad" },
+    });
+    expect(getClientId(r)).toBe("anonymous");
+  });
+
+  it("skips junk entries and uses the first valid IP", () => {
+    const r = new Request("https://x.test", {
+      headers: { "x-forwarded-for": "spoofed, 9.9.9.9, 10.0.0.1" },
+    });
+    expect(getClientId(r)).toBe("9.9.9.9");
+  });
+
+  it("prefers platform-set headers over client-controllable x-forwarded-for", () => {
+    const r = new Request("https://x.test", {
+      headers: {
+        "x-forwarded-for": "1.2.3.4",
+        "x-real-ip": "5.6.7.8",
+      },
+    });
+    expect(getClientId(r)).toBe("5.6.7.8");
+  });
+
+  it("accepts IPv6 values", () => {
+    const r = new Request("https://x.test", {
+      headers: { "x-forwarded-for": "2001:db8::1" },
+    });
+    expect(getClientId(r)).toBe("2001:db8::1");
+  });
+
+  it("rejects malformed IPs", () => {
+    expect(isValidIp("999.999.999.999")).toBe(false);
+    expect(isValidIp("256.0.0.1")).toBe(false);
+    expect(isValidIp("01.2.3.4")).toBe(false);
+    expect(isValidIp("not-an-ip")).toBe(false);
+    expect(isValidIp("1.2.3.4")).toBe(true);
+  });
+});
+
+describe("getRateLimitKey", () => {
+  it("uses a stable ip: bucket for identified clients", () => {
+    const r = new Request("https://x.test", {
+      headers: { "x-forwarded-for": "1.2.3.4" },
+    });
+    expect(getRateLimitKey(r)).toBe("ip:1.2.3.4");
+    expect(getRateLimitKey(r)).toBe(getRateLimitKey(r));
+  });
+
+  it("isolates unidentifiable callers instead of sharing one anonymous bucket", () => {
+    const a = getRateLimitKey(new Request("https://x.test"));
+    const b = getRateLimitKey(new Request("https://x.test"));
+    expect(a.startsWith("anonymous:")).toBe(true);
+    expect(b.startsWith("anonymous:")).toBe(true);
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("RATE_LIMITS", () => {
+  it("declares distinct quotas per route class", () => {
+    expect(RATE_LIMITS.escrowRead).not.toEqual(RATE_LIMITS.escrowWrite);
+    expect(RATE_LIMITS.og.windowMs).not.toBe(RATE_LIMITS.escrowRead.windowMs);
+    expect(RATE_LIMITS.og.limit).toBeGreaterThan(0);
+    expect(RATE_LIMITS.escrowWrite.limit).toBeGreaterThan(0);
   });
 });
 

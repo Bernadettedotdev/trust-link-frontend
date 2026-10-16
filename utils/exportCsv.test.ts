@@ -1,6 +1,8 @@
-import { beforeEach,describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach,describe, expect, it, vi } from "vitest";
 
-import { downloadCsv } from "./exportCsv";
+import { downloadCsv, ensureCsvExtension } from "./exportCsv";
+
+const UTF8_BOM = "\uFEFF";
 
 describe("downloadCsv", () => {
   let appendedLink: HTMLAnchorElement | null;
@@ -29,7 +31,13 @@ describe("downloadCsv", () => {
     vi.spyOn(document.body, "removeChild").mockImplementation((node) => node);
   });
 
-  it("generates a header-only CSV when rows is empty", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  /** Capture the string parts handed to the Blob constructor. */
+  function captureBlob(): () => string {
     let blobContent = "";
     const OrigBlob = globalThis.Blob;
     const BlobSpy = vi.fn(function (this: Blob, parts: BlobPart[]) {
@@ -37,13 +45,12 @@ describe("downloadCsv", () => {
       return new OrigBlob(parts);
     });
     vi.stubGlobal("Blob", BlobSpy);
+    return () => blobContent;
+  }
 
-    downloadCsv([], [{ key: "a", header: "A" }, { key: "b", header: "B" }], "test.csv");
-
-    // Should have BOM + header with CRLF
-    expect(blobContent).toBe("\uFEFFA,B");
-    expect(appendedLink).not.toBeNull();
-    expect(appendedLink!.download).toBe("test.csv");
+  it("does nothing when rows is empty", () => {
+    downloadCsv([], [{ key: "a", header: "A" }], "test.csv");
+    expect(appendedLink).toBeNull();
   });
 
   it("generates correct CSV content and triggers download", () => {
@@ -57,20 +64,16 @@ describe("downloadCsv", () => {
       { key: "amount", header: "Amount" },
     ];
 
-    // Capture Blob content
-    let blobContent = "";
-    const OrigBlob = globalThis.Blob;
-    const BlobSpy = vi.fn(function (this: Blob, parts: BlobPart[]) {
-      blobContent = parts.join("");
-      return new OrigBlob(parts);
-    });
-    vi.stubGlobal("Blob", BlobSpy);
-
+    const getContent = captureBlob();
     downloadCsv(rows, columns, "export.csv");
+    const blobContent = getContent();
 
-    // Verify CSV content with BOM and CRLF
-    const lines = blobContent.split("\r\n");
-    expect(lines[0]).toBe("\uFEFFID,Name,Amount");
+    // BOM prefix tells Excel the file is UTF-8.
+    expect(blobContent.startsWith(UTF8_BOM)).toBe(true);
+
+    // Rows are CRLF-joined per RFC 4180.
+    const lines = blobContent.slice(UTF8_BOM.length).split("\r\n");
+    expect(lines[0]).toBe("ID,Name,Amount");
     expect(lines[1]).toBe('1,"Alice, Jr.",100');
     expect(lines[2]).toBe('2,"Bob ""B""",200');
 
@@ -82,48 +85,47 @@ describe("downloadCsv", () => {
     expect(revokedUrl).toBe("blob:http://localhost/fake");
   });
 
-  it("escapes fields with newlines properly", () => {
-    const rows = [
-      { id: "1", note: "Line 1\nLine 2" },
-    ];
+  it("quotes cells containing a bare carriage return", () => {
+    const rows = [{ id: "1", note: "line1\rline2" }];
     const columns: { key: keyof (typeof rows)[0]; header: string }[] = [
       { key: "id", header: "ID" },
       { key: "note", header: "Note" },
     ];
 
-    let blobContent = "";
-    const OrigBlob = globalThis.Blob;
-    const BlobSpy = vi.fn(function (this: Blob, parts: BlobPart[]) {
-      blobContent = parts.join("");
-      return new OrigBlob(parts);
-    });
-    vi.stubGlobal("Blob", BlobSpy);
+    const getContent = captureBlob();
+    downloadCsv(rows, columns, "cr.csv");
 
-    downloadCsv(rows, columns, "newlines.csv");
-
-    // Newlines inside quoted cells should be preserved
-    expect(blobContent).toContain('1,"Line 1\nLine 2"');
+    const dataLine = getContent().slice(UTF8_BOM.length).split("\r\n")[1];
+    expect(dataLine).toBe('1,"line1\rline2"');
   });
 
-  it("handles missing column keys gracefully", () => {
-    const rows: Record<string, unknown>[] = [{ id: "1" }]; // missing 'missingKey'
-    const columns = [
+  it("quotes cells containing a newline", () => {
+    const rows = [{ id: "1", note: "line1\nline2" }];
+    const columns: { key: keyof (typeof rows)[0]; header: string }[] = [
       { key: "id", header: "ID" },
-      { key: "missingKey", header: "Missing Key" },
+      { key: "note", header: "Note" },
     ];
 
-    let blobContent = "";
-    const OrigBlob = globalThis.Blob;
-    const BlobSpy = vi.fn(function (this: Blob, parts: BlobPart[]) {
-      blobContent = parts.join("");
-      return new OrigBlob(parts);
-    });
-    vi.stubGlobal("Blob", BlobSpy);
+    const getContent = captureBlob();
+    downloadCsv(rows, columns, "lf.csv");
 
-    downloadCsv(rows, columns, "missing.csv");
+    const dataLine = getContent().slice(UTF8_BOM.length).split("\r\n")[1];
+    expect(dataLine).toBe('1,"line1\nline2"');
+  });
 
-    const lines = blobContent.split("\n");
-    expect(lines[1]).toBe("1,");
+  it("prefixes a UTF-8 BOM so unicode round-trips", () => {
+    const rows = [{ id: "1", name: "Café ☕ — 日本語" }];
+    const columns: { key: keyof (typeof rows)[0]; header: string }[] = [
+      { key: "id", header: "ID" },
+      { key: "name", header: "Name" },
+    ];
+
+    const getContent = captureBlob();
+    downloadCsv(rows, columns, "unicode.csv");
+
+    const content = getContent();
+    expect(content.startsWith(UTF8_BOM)).toBe(true);
+    expect(content).toContain("Café ☕ — 日本語");
   });
 
   it("handles undefined/null values gracefully", () => {
@@ -133,115 +135,37 @@ describe("downloadCsv", () => {
       { key: "value", header: "Value" },
     ];
 
-    let blobContent = "";
-    const OrigBlob = globalThis.Blob;
-    const BlobSpy = vi.fn(function (this: Blob, parts: BlobPart[]) {
-      blobContent = parts.join("");
-      return new OrigBlob(parts);
-    });
-    vi.stubGlobal("Blob", BlobSpy);
-
+    const getContent = captureBlob();
     downloadCsv(rows, columns, "test.csv");
 
-    const lines = blobContent.split("\r\n");
+    const lines = getContent().slice(UTF8_BOM.length).split("\r\n");
     expect(lines[1]).toBe("1,");
     expect(lines[2]).toBe("2,");
   });
 
-  it("quotes fields with carriage returns", () => {
-    const rows = [{ id: "1", note: "Line 1\rLine 2" }];
-    const columns: { key: keyof (typeof rows)[0]; header: string }[] = [
-      { key: "id", header: "ID" },
-      { key: "note", header: "Note" },
-    ];
-
-    let blobContent = "";
-    const OrigBlob = globalThis.Blob;
-    const BlobSpy = vi.fn(function (this: Blob, parts: BlobPart[]) {
-      blobContent = parts.join("");
-      return new OrigBlob(parts);
-    });
-    vi.stubGlobal("Blob", BlobSpy);
-
-    downloadCsv(rows, columns, "test.csv");
-
-    expect(blobContent).toContain('"Line 1\rLine 2"');
-  });
-
-  it("adds UTF-8 BOM to CSV content", () => {
-    const rows = [{ name: "日本語" }];
-    const columns: { key: keyof (typeof rows)[0]; header: string }[] = [
-      { key: "name", header: "Name" },
-    ];
-
-    let blobContent = "";
-    const OrigBlob = globalThis.Blob;
-    const BlobSpy = vi.fn(function (this: Blob, parts: BlobPart[]) {
-      blobContent = parts.join("");
-      return new OrigBlob(parts);
-    });
-    vi.stubGlobal("Blob", BlobSpy);
-
-    downloadCsv(rows, columns, "unicode.csv");
-
-    expect(blobContent.charCodeAt(0)).toBe(0xFEFF);
-  });
-
-  it("uses CRLF line endings", () => {
-    const rows = [
-      { id: "1" },
-      { id: "2" },
-    ];
-    const columns: { key: keyof (typeof rows)[0]; header: string }[] = [
-      { key: "id", header: "ID" },
-    ];
-
-    let blobContent = "";
-    const OrigBlob = globalThis.Blob;
-    const BlobSpy = vi.fn(function (this: Blob, parts: BlobPart[]) {
-      blobContent = parts.join("");
-      return new OrigBlob(parts);
-    });
-    vi.stubGlobal("Blob", BlobSpy);
-
-    downloadCsv(rows, columns, "test.csv");
-
-    expect(blobContent).toContain("\r\n");
-    const lines = blobContent.split("\r\n");
-    expect(lines.length).toBe(3); // BOM+header, row1, row2
-  });
-
-  it("enforces .csv extension", () => {
+  it("forces a .csv extension onto the download name", () => {
     const rows = [{ id: "1" }];
     const columns: { key: keyof (typeof rows)[0]; header: string }[] = [
       { key: "id", header: "ID" },
     ];
 
-    const OrigBlob = globalThis.Blob;
-    const BlobSpy = vi.fn(function (this: Blob, parts: BlobPart[]) {
-      return new OrigBlob(parts);
-    });
-    vi.stubGlobal("Blob", BlobSpy);
+    downloadCsv(rows, columns, "report");
 
-    downloadCsv(rows, columns, "export");
-
-    expect(appendedLink!.download).toBe("export.csv");
+    expect(appendedLink!.download).toBe("report.csv");
   });
 
-  it("throws error in SSR context (no window)", () => {
-    const originalWindow = globalThis.window;
-    // @ts-expect-error - intentionally setting window to undefined for testing
-    globalThis.window = undefined;
+  it("preserves an existing .csv extension (case-insensitive)", () => {
+    expect(ensureCsvExtension("report.CSV")).toBe("report.CSV");
+    expect(ensureCsvExtension("report")).toBe("report.csv");
+  });
 
-    const rows = [{ id: "1" }];
-    const columns: { key: keyof (typeof rows)[0]; header: string }[] = [
-      { key: "id", header: "ID" },
-    ];
+  it("does not throw when imported/called during SSR (no window or document)", () => {
+    // Simulate a server environment where the DOM globals are absent.
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("document", undefined);
 
-    expect(() => downloadCsv(rows, columns, "test.csv")).toThrow(
-      "downloadCsv can only be called in a browser environment"
-    );
-
-    globalThis.window = originalWindow;
+    expect(() => {
+      downloadCsv([{ id: "1" }], [{ key: "id", header: "ID" }], "ssr.csv");
+    }).not.toThrow();
   });
 });

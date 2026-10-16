@@ -4,6 +4,11 @@ import { useCallback, useRef, useState } from "react";
 
 import type { DisputeFormValues } from "@/lib/validations/dispute";
 import {
+  DISPUTE_ERRORS,
+  isAllowedDisputeMimeType,
+  MAX_DISPUTE_FILE_SIZE,
+} from "@/lib/validations/dispute";
+import {
   validateStep1Data,
   validateStep2Data,
   validateStep3Data,
@@ -113,26 +118,18 @@ export function useDisputeFormState({
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const selectedFiles = Array.from(e.target.files || []);
-      const allowedTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/jpg",
-        "image/webp",
-        "application/pdf",
-      ];
-      const maxSize = 10 * 1024 * 1024;
 
       const rejectedByType = selectedFiles.filter(
-        (file) => !allowedTypes.includes(file.type)
+        (file) => !isAllowedDisputeMimeType(file.type)
       );
       const rejectedBySize = selectedFiles.filter(
-        (file) => file.size > maxSize
+        (file) => file.size > MAX_DISPUTE_FILE_SIZE
       );
 
       if (rejectedByType.length > 0) {
         setErrors((prev) => ({
           ...prev,
-          files: "Please upload an image (JPG, PNG, WebP) or PDF.",
+          files: DISPUTE_ERRORS.fileType,
         }));
         return;
       }
@@ -140,7 +137,7 @@ export function useDisputeFormState({
       if (rejectedBySize.length > 0) {
         setErrors((prev) => ({
           ...prev,
-          files: "Each file must be 10 MB or smaller.",
+          files: DISPUTE_ERRORS.fileTooLarge,
         }));
         return;
       }
