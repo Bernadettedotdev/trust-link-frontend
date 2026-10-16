@@ -49,10 +49,11 @@ function NotificationsContent() {
     Math.ceil(filteredNotifications.length / NOTIFICATIONS_PER_PAGE)
   );
   const effectivePage = Math.min(currentPage, totalPages);
+
   const paginatedNotifications = useMemo(() => {
     const startIndex = (effectivePage - 1) * NOTIFICATIONS_PER_PAGE;
-    return notifications.slice(startIndex, startIndex + NOTIFICATIONS_PER_PAGE);
-  }, [notifications, effectivePage]);
+    return filteredNotifications.slice(startIndex, startIndex + NOTIFICATIONS_PER_PAGE);
+  }, [filteredNotifications, effectivePage]);
 
   useEffect(() => {
     const jwt = window.localStorage.getItem("wallet.jwt");
