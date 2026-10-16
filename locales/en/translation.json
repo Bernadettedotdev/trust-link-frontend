@@ -195,7 +195,10 @@
     "disputeInProgress": "Dispute in Progress",
     "disputeMessage": "A dispute has been raised for this order. Our team is reviewing the case and will resolve it shortly.",
     "orderNotFound": "Order Not Found",
-    "orderNotFoundDesc": "We couldn't find an order with the ID:"
+    "orderNotFoundDesc": "We couldn't find an order with the ID:",
+    "loadErrorTitle": "We couldn't load tracking status",
+    "loadError": "Failed to load tracking status.",
+    "goToStage": "Go to stage {{stage}}"
   },
   "nav": {
     "dashboard": "Dashboard",

@@ -108,8 +108,8 @@ export default function TrackingTimeline({
     const activeError = fetchError || localError;
     return (
       <FetchErrorState
-        title="We couldn't load tracking status"
-        message={getFetchErrorMessage(activeError, "Failed to load tracking status.")}
+        title={t("tracking.loadErrorTitle")}
+        message={getFetchErrorMessage(activeError, t("tracking.loadError"))}
         onRetry={() => {
           setLocalError(null);
           void refetch();
@@ -255,7 +255,7 @@ export default function TrackingTimeline({
                     ? "bg-blue-600 dark:bg-blue-400"
                     : "bg-zinc-300 dark:bg-zinc-700"
                 }`}
-                aria-label={`Go to stage ${index + 1}`}
+                aria-label={t("tracking.goToStage", { stage: index + 1 })}
               />
             ))}
           </div>
