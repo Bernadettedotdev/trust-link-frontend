@@ -41,3 +41,68 @@ export function handleSessionExpired(): void {
 
   window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
 }
+
+/**
+ * How long before a session JWT expires its renewal is scheduled.
+ *
+ * Renewing early keeps in-flight requests from racing the expiry, at the cost
+ * of signing a new challenge slightly sooner than strictly necessary.
+ */
+export const SESSION_REFRESH_LEAD_MS = 5 * 60 * 1000;
+
+/**
+ * Floor on any scheduled refresh delay.
+ *
+ * Subtracting {@link SESSION_REFRESH_LEAD_MS} from a token that has less than
+ * five minutes left yields a negative delay. Clamping that at zero makes the
+ * renewal fire immediately, and because every renewal replaces the token — and
+ * so reschedules this effect — a backend handing out short-lived tokens turns
+ * into an unbroken stream of zero-delay signing requests, each one a Freighter
+ * prompt. A floor keeps the retry rate bounded no matter how short the token
+ * is; the trade-off is that a token with under 30 seconds left is refreshed
+ * just after it lapses rather than just before.
+ */
+export const MIN_SESSION_REFRESH_DELAY_MS = 30 * 1000;
+
+/**
+ * What to do with a session token: renew it after `delayMs`, or treat it as
+ * unusable. `reason` distinguishes a token that has simply lapsed from one
+ * whose `exp` claim could not be read at all.
+ */
+export type SessionRefreshSchedule =
+  | { kind: "refresh"; delayMs: number }
+  | { kind: "unusable"; reason: "expired" | "invalid-expiry" };
+
+/**
+ * Decides when — or whether — a session JWT should be renewed.
+ *
+ * Kept free of React and of the wallet adapters so both wallet implementations
+ * schedule renewals identically, and so the bound can be tested directly.
+ *
+ * @param expiresAtSeconds - The token's `exp` claim, in seconds since the epoch.
+ *   Anything that is not a finite number is reported as `invalid-expiry` rather
+ *   than producing a `NaN` delay, which `setTimeout` would run immediately.
+ * @param now - Current time in milliseconds; injectable for tests.
+ * @returns The renewal delay, or why the token cannot be renewed on a timer.
+ */
+export function getSessionRefreshSchedule(
+  expiresAtSeconds: unknown,
+  now: number = Date.now(),
+): SessionRefreshSchedule {
+  if (typeof expiresAtSeconds !== "number" || !Number.isFinite(expiresAtSeconds)) {
+    return { kind: "unusable", reason: "invalid-expiry" };
+  }
+
+  const timeLeftMs = expiresAtSeconds * 1000 - now;
+  if (timeLeftMs <= 0) {
+    return { kind: "unusable", reason: "expired" };
+  }
+
+  return {
+    kind: "refresh",
+    delayMs: Math.max(
+      MIN_SESSION_REFRESH_DELAY_MS,
+      timeLeftMs - SESSION_REFRESH_LEAD_MS,
+    ),
+  };
+}

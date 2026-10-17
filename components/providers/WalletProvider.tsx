@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { useNetwork } from "@/components/providers/NetworkProvider";
 import { captureError, setLoggerUser } from "@/lib/logger";
-import { handleSessionExpired, PUBLIC_KEY_STORAGE_KEY, SESSION_EXPIRED_EVENT, SESSION_KEY } from "@/lib/session";
+import { getSessionRefreshSchedule, handleSessionExpired, PUBLIC_KEY_STORAGE_KEY, SESSION_EXPIRED_EVENT, SESSION_KEY, type SessionRefreshSchedule } from "@/lib/session";
 import { getChallenge, verifyChallenge } from "@/lib/stellar";
 import { connectFreighter, isConnected as freighterIsConnected, isFreighterInstalled, signTransaction as freighterSignTransaction } from "@/lib/stellar/freighter";
 
@@ -26,7 +26,7 @@ export interface WalletContextType {
 }
 
 export const WalletContext = createContext<WalletContextType | undefined>(undefined);
-interface JwtPayload { exp: number; }
+interface JwtPayload { exp?: number }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -54,13 +54,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [stellarNetwork]);
 
-  const clearWallet = useCallback(() => {
+  /**
+   * Drops every trace of the connected wallet — React state, the logger
+   * identity and the persisted credentials — without announcing a session
+   * expiry. `error` is deliberately left alone so the UI can still say why the
+   * connection failed, and a later `connect()` recovers without a reload.
+   */
+  const clearIdentity = useCallback(() => {
     setToken(null);
     setPublicKey(null);
     tokenRef.current = null;
     setLoggerUser(null);
-    handleSessionExpired();
+    localStorage.removeItem(PUBLIC_KEY_STORAGE_KEY);
+    localStorage.removeItem(SESSION_KEY);
   }, []);
+
+  const clearWallet = useCallback(() => {
+    clearIdentity();
+    handleSessionExpired();
+  }, [clearIdentity]);
 
   useEffect(() => { tokenRef.current = token; }, [token]);
 
@@ -74,12 +86,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (storedKey && installed && (await freighterIsConnected()).isConnected) {
         setPublicKey(storedKey);
         setLoggerUser(storedKey);
-        try { await authenticate(storedKey); } catch (caught) { captureError(caught, { scope: "wallet", action: "restoreSession" }); }
+        try {
+          await authenticate(storedKey);
+        } catch (caught) {
+          captureError(caught, { scope: "wallet", action: "restoreSession" });
+          // The stored key was adopted above before the challenge was
+          // verified. Roll it back rather than presenting an authenticated
+          // wallet that holds no token.
+          clearIdentity();
+        }
       }
       if (mounted) { setIsLoading(false); setWalletReady(true); }
     })();
     return () => { mounted = false; };
-  }, [authenticate]);
+  }, [authenticate, clearIdentity]);
 
   useEffect(() => {
     const onUnauthorized = () => { if (tokenRef.current) clearWallet(); };
@@ -89,14 +109,49 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!token || !publicKey) return;
+
+    let schedule: SessionRefreshSchedule;
     try {
-      const timeLeft = jwtDecode<JwtPayload>(token).exp * 1000 - Date.now();
-      const timeout = window.setTimeout(() => { void authenticate(publicKey); }, Math.max(0, timeLeft - 300000));
-      return () => window.clearTimeout(timeout);
+      schedule = getSessionRefreshSchedule(jwtDecode<JwtPayload>(token).exp);
     } catch (caught) {
+      // `jwtDecode` throws outright for anything that is not a JWT.
       captureError(caught, { scope: "auth", action: "decodeSessionToken" });
-      clearWallet();
+      schedule = { kind: "unusable", reason: "invalid-expiry" };
     }
+
+    if (schedule.kind === "unusable") {
+      // A lapsed or unreadable `exp` can never be renewed on a timer:
+      // scheduling that re-signed immediately, and every replacement token
+      // restarted the effect. End in a defined expired state instead.
+      //
+      // The teardown runs from a timer rather than straight from the effect
+      // body so it does not cascade renders; a zero-delay *teardown* cannot
+      // loop the way the old zero-delay *renewal* did, because it clears the
+      // token the effect depends on.
+      const { reason } = schedule;
+      const expiry = window.setTimeout(() => {
+        captureError(new Error(`Session token cannot be refreshed: ${reason}`), {
+          scope: "auth",
+          action: "scheduleSessionRefresh",
+        });
+        clearWallet();
+      }, 0);
+
+      return () => window.clearTimeout(expiry);
+    }
+
+    const timeout = window.setTimeout(() => {
+      // `authenticate` rejects whenever the challenge, the signature or the
+      // verification fails. Catch it on the timer so the renewal never becomes
+      // an unhandled rejection, and so an unrenewable session ends expired
+      // rather than sitting on a stale token.
+      void authenticate(publicKey).catch((caught: unknown) => {
+        captureError(caught, { scope: "auth", action: "refreshSession" });
+        clearWallet();
+      });
+    }, schedule.delayMs);
+
+    return () => window.clearTimeout(timeout);
   }, [token, publicKey, authenticate, clearWallet]);
 
   const connect = useCallback(async () => {
@@ -108,7 +163,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setPublicKey(key);
       setLoggerUser(key);
       localStorage.setItem(PUBLIC_KEY_STORAGE_KEY, key);
-      await authenticate(key);
+      try {
+        await authenticate(key);
+      } catch (caught) {
+        // The public key, the logger identity and the persisted key were all
+        // committed before the signature was verified. Undo them so a rejected
+        // authentication leaves nothing behind for the retry to trip over.
+        clearIdentity();
+        throw caught;
+      }
       toast.success("Wallet connected");
       return true;
     } catch (caught) {
@@ -117,7 +180,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       toast.error(nextError.message);
       return false;
     } finally { setIsLoading(false); }
-  }, [authenticate]);
+  }, [authenticate, clearIdentity]);
 
   const disconnect = useCallback(() => {
     setPublicKey(null);
