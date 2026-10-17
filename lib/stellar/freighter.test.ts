@@ -123,6 +123,31 @@ describe("lib/stellar/freighter.ts", () => {
       await expect(isFreighterInstalled()).resolves.toBe(false);
     });
 
+    it("returns false when the SDK reports an error alongside the flag", async () => {
+      mockIsConnected.mockResolvedValue({
+        isConnected: true,
+        error: "Freighter is locked",
+      });
+
+      await expect(isFreighterInstalled()).resolves.toBe(false);
+    });
+
+    it.each([
+      ["undefined", undefined],
+      ["null", null],
+    ])("returns false when the SDK resolves to %s", async (_label, response) => {
+      mockIsConnected.mockResolvedValue(response);
+
+      await expect(isFreighterInstalled()).resolves.toBe(false);
+    });
+
+    it("returns an actual boolean, not the SDK response object", async () => {
+      mockIsConnected.mockResolvedValue({ isConnected: true });
+
+      await expect(isFreighterInstalled()).resolves.toBe(true);
+      expect(typeof (await isFreighterInstalled())).toBe("boolean");
+    });
+
     it("does not treat the awaited response object as a boolean", async () => {
       // `isConnected()` resolves to an object, which is always truthy.
       mockIsConnected.mockResolvedValue({ isConnected: false });
@@ -161,6 +186,22 @@ describe("lib/stellar/freighter.ts", () => {
       mockIsConnected.mockResolvedValue({ isConnected: false });
 
       await expect(connectFreighter()).rejects.toThrow("Freighter not installed");
+    });
+
+    it("does not request an address after a disconnected response", async () => {
+      mockIsConnected.mockResolvedValue({ isConnected: false });
+
+      await expect(connectFreighter()).rejects.toThrow("Freighter not installed");
+      expect(mockIsAllowed).not.toHaveBeenCalled();
+      expect(mockSetAllowed).not.toHaveBeenCalled();
+      expect(mockGetAddress).not.toHaveBeenCalled();
+    });
+
+    it("does not request an address after a rejected installation check", async () => {
+      mockIsConnected.mockRejectedValue(new Error("Freighter API unavailable"));
+
+      await expect(connectFreighter()).rejects.toThrow("Freighter not installed");
+      expect(mockGetAddress).not.toHaveBeenCalled();
     });
 
     it("throws error when getAddress returns null", async () => {
