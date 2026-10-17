@@ -33,7 +33,11 @@ export { isValidNetworkPassphrase, resolveNetworkPassphrase };
  * on the page, which is also true for mocks and for the external API shim when
  * no extension is running.
  *
- * @returns {Promise<boolean>} True when the wallet can be reached, false otherwise
+ * The SDK response is an object, never a boolean, so it is unwrapped here
+ * rather than by each caller.
+ *
+ * @returns {Promise<boolean>} True when the wallet can be reached, false
+ *   otherwise — including when the SDK reports an error or rejects.
  * @example
  * const installed = await isFreighterInstalled();
  * if (!installed) {
@@ -42,9 +46,15 @@ export { isValidNetworkPassphrase, resolveNetworkPassphrase };
  */
 export async function isFreighterInstalled(): Promise<boolean> {
   if (typeof window === "undefined") return false;
-  
+
   try {
-    return await isConnected();
+    // The SDK answers with `{ isConnected }` plus an optional `error`, and that
+    // object is truthy whatever it reports — returning it directly would make
+    // every caller treat a disconnected wallet as an installed one. Unwrap the
+    // flag, and read an error payload or an absent response as "unreachable".
+    const response = await isConnected();
+    if (!response || response.error) return false;
+    return response.isConnected === true;
   } catch {
     return false;
   }
