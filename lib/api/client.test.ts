@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -208,6 +211,21 @@ describe("base URL configuration", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("reads the origin through a statically addressable reference", () => {
+    // Next.js only substitutes a `NEXT_PUBLIC_` variable into the browser
+    // bundle where the reference is written out literally; a
+    // `process.env[someVariable]` lookup is left as-is and reads as
+    // `undefined` on the client. That cannot be observed from a Node test
+    // runner, where `process.env` is live either way, so assert the shape of
+    // the access itself.
+    const source = readFileSync(join(process.cwd(), "lib/api/client.ts"), "utf8");
+
+    expect(source).toContain(
+      "const baseUrl = process.env.NEXT_PUBLIC_API_URL?.trim();",
+    );
+    expect(source).not.toMatch(/=\s*process\.env\[/);
+  });
+
   it("trims a trailing slash so paths are not doubled up", async () => {
     process.env[API_URL_ENV_VAR] = "https://api.trustlink.app/";
     fetchMock.mockResolvedValueOnce(mockResponse(escrow));
@@ -216,6 +234,39 @@ describe("base URL configuration", () => {
 
     expect(fetchMock.mock.calls[0][0]).toBe(
       "https://api.trustlink.app/escrow/e1",
+    );
+  });
+
+  it("trims repeated trailing slashes without touching the endpoint path", async () => {
+    process.env[API_URL_ENV_VAR] = "https://api.trustlink.app///";
+    fetchMock.mockResolvedValueOnce(mockResponse(tracking));
+
+    await createApiClient().getTracking("e1");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api.trustlink.app/escrows/e1/tracking",
+    );
+  });
+
+  it("keeps a base path intact while trimming its trailing slash", async () => {
+    process.env[API_URL_ENV_VAR] = "https://trustlink.app/api/v2/";
+    fetchMock.mockResolvedValueOnce(mockResponse(escrow));
+
+    await createApiClient().getEscrow("e1");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://trustlink.app/api/v2/escrow/e1",
+    );
+  });
+
+  it("uses a non-default origin as configured", async () => {
+    process.env[API_URL_ENV_VAR] = "https://api-staging.trustlink.app";
+    fetchMock.mockResolvedValueOnce(mockResponse(escrow));
+
+    await createApiClient().getEscrow("e1");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://api-staging.trustlink.app/escrow/e1",
     );
   });
 });

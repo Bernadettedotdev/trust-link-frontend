@@ -38,6 +38,16 @@ import {
   isTracking,
 } from "@/types/guards";
 
+/**
+ * Name of the variable that configures the API origin.
+ *
+ * This constant is for error messages only. The value is read through the
+ * literal `process.env.NEXT_PUBLIC_API_URL` in {@link getBaseUrl}, because
+ * Next.js inlines a `NEXT_PUBLIC_` variable into the browser bundle only where
+ * the reference is statically addressable — a `process.env[API_URL_ENV_VAR]`
+ * lookup is left untouched by the compiler and reads as `undefined` on the
+ * client, however the deployment is configured.
+ */
 const API_URL_ENV_VAR = "NEXT_PUBLIC_API_URL";
 
 /** @deprecated Use `ApiErrorResponse` from `@/types/api`. Kept for existing imports. */
@@ -95,11 +105,17 @@ export class ApiNetworkError extends ApiError {
  * API answers with an opaque failure — or, worse, a 404 from the app's own
  * origin. Any trailing slash is trimmed so `${base}${path}` stays well formed.
  *
+ * The read stays lazy — resolved per request rather than at module load — but
+ * goes through the literal `process.env.NEXT_PUBLIC_API_URL` so `next build`
+ * substitutes the configured origin into the client bundle.
+ *
  * @returns The configured base URL, without a trailing slash.
  * @throws {ApiConfigurationError} If `NEXT_PUBLIC_API_URL` is unset or blank.
  */
 function getBaseUrl(): string {
-  const baseUrl = process.env[API_URL_ENV_VAR]?.trim();
+  // Statically addressable on purpose: this exact expression is what the
+  // compiler replaces with the configured value in browser bundles.
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (!baseUrl) {
     throw new ApiConfigurationError(
       `${API_URL_ENV_VAR} is not defined. Set it in .env.local or your deployment ` +
