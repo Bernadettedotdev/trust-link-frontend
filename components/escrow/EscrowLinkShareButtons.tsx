@@ -91,7 +91,9 @@ export default function EscrowLinkShareButtons({
   };
 
   const copyTwitter = async () => {
-    const xUrl = `${url}?utm_source=twitter&utm_medium=share`;
+    const xUrl = new URL(url);
+    xUrl.searchParams.set("utm_source", "twitter");
+    xUrl.searchParams.set("utm_medium", "share");
     const text = `Pay securely via TrustLink escrow: ${title} (${amount}) ${xUrl}`;
     await navigator.clipboard.writeText(text);
     await track("link_copied", { platform: "twitter" });
