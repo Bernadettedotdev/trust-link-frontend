@@ -86,10 +86,8 @@ export default function ShareModal({ isOpen, onClose, url }: ShareModalProps) {
         track("link_shared", { platform: "whatsapp", method: "native" });
         return;
       } catch (err: unknown) {
-        // User cancelled or share failed, fall through to WhatsApp URL
-        if (!isAbortError(err)) {
-          console.error("Share failed:", err);
-        }
+        if (isAbortError(err)) return;
+        console.error("Share failed:", err);
       }
     }
     

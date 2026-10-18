@@ -41,9 +41,6 @@ function truncateHash(hash: string) {
 /** Set to "true" to keep using the mocked transaction pipeline (development only). */
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
-const DEFAULT_SOROBAN_RPC_URL =
-  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
-
 /**
  * Builds the real funding transaction XDR for the escrow contract via
  * `@/lib/stellar/contract`. Returns an unsigned XDR ready to be signed by the
@@ -151,10 +148,11 @@ export default function PaymentForm({
 }: PaymentFormProps) {
   const { t } = useTranslation();
   const { status: walletStatus, publicKey } = useWallet();
-  const { network } = useNetwork();
+  const { network, config } = useNetwork();
   const [internalFormState, setInternalFormState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [internalErrorMessage, setInternalErrorMessage] = useState<string | null>(null);
   const [internalTxHash, setInternalTxHash] = useState<string | null>(null);
+  const [confirmedNetwork, setConfirmedNetwork] = useState<typeof network | null>(null);
   const [paidAt, setPaidAt] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [sendReceipt, setSendReceipt] = useState(false);
@@ -195,12 +193,10 @@ export default function PaymentForm({
     setEmailError(null);
 
     try {
+      // Keep every stage of this attempt on the network selected at submission.
+      const attemptNetwork = { ...config, network };
       setInternalFormState("loading");
       setInternalErrorMessage(null);
-
-      const networkPassphrase =
-        process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ||
-        "Test SDF Network ; September 2015";
 
       const xdr = USE_MOCKS
         ? await mockFetchTransactionXdr(escrowId)
@@ -208,17 +204,17 @@ export default function PaymentForm({
             escrowId,
             escrowContractId,
             sourceAccount: publicKey ?? "",
-            network: network === "mainnet" ? "PUBLIC" : "TESTNET",
+            network: attemptNetwork.network === "mainnet" ? "PUBLIC" : "TESTNET",
           });
 
-      const signedXdr = await signTransaction(xdr, networkPassphrase);
+      const signedXdr = await signTransaction(xdr, attemptNetwork.networkPassphrase);
 
       const hash = USE_MOCKS
         ? await mockSubmitTransaction(signedXdr)
         : await submitTransaction(
             signedXdr,
-            DEFAULT_SOROBAN_RPC_URL,
-            networkPassphrase
+            attemptNetwork.rpcUrl,
+            attemptNetwork.networkPassphrase
           );
 
       if (sendReceipt && buyerEmail.trim()) {
@@ -233,6 +229,7 @@ export default function PaymentForm({
       }
 
       setInternalTxHash(hash);
+      setConfirmedNetwork(attemptNetwork.network);
       setPaidAt(new Date().toISOString());
       setInternalFormState("success");
       toast.success(t("payment.confirmationTitle") || "Payment successful");
@@ -321,7 +318,7 @@ export default function PaymentForm({
             {t("payment.txHash") || "Transaction"}: {truncateHash(txHash)}
           </p>
           <a
-            href={getStellarExpertTxUrl(txHash, network)}
+            href={getStellarExpertTxUrl(txHash, confirmedNetwork ?? network)}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 inline-block text-sm font-medium text-green-700 underline hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
