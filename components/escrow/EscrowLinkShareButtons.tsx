@@ -8,11 +8,12 @@ import {
   Share2,
   X,
 } from "lucide-react";
-import { useRef } from "react";
+import type { RefObject } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { track } from "@/lib/analytics";
+import { downloadQrCode } from "@/lib/utils/downloadQrCode";
 
 async function copyToClipboard(text: string): Promise<void> {
   if (!navigator.clipboard || !navigator.clipboard.writeText) {
@@ -31,6 +32,7 @@ interface EscrowLinkShareButtonsProps {
   errorMsg: string | null;
   onCopy: () => void;
   onNativeShare: () => void;
+  qrRef: RefObject<HTMLDivElement | null>;
 }
 
 export default function EscrowLinkShareButtons({
@@ -43,8 +45,8 @@ export default function EscrowLinkShareButtons({
   errorMsg,
   onCopy,
   onNativeShare,
+  qrRef,
 }: EscrowLinkShareButtonsProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const canShare = typeof navigator !== "undefined" && Boolean(navigator.share);
 
   const shareWhatsApp = async () => {
@@ -99,15 +101,14 @@ export default function EscrowLinkShareButtons({
   };
 
   const downloadQR = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const pngUrl = canvas.toDataURL("image/png");
-    const a = document.createElement("a");
-    a.href = pngUrl;
-    a.download = `escrow_${escrowId}.png`;
-    a.click();
-    await track("qr_code_downloaded", { escrowId });
+    try {
+      await downloadQrCode(qrRef.current?.querySelector("svg"), `escrow_${escrowId}.png`);
+    } catch {
+      toast.error("Could not download QR code. Please try again.");
+      return;
+    }
     toast.success("QR code downloaded");
+    void track("qr_code_downloaded", { escrowId });
   };
 
   return (
@@ -196,8 +197,6 @@ export default function EscrowLinkShareButtons({
           {errorMsg}
         </p>
       )}
-
-      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 }

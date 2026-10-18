@@ -7,6 +7,7 @@ import { EscrowCreateFormFields } from "@/components/escrow/EscrowCreateFormFiel
 import { EscrowCreateFormResult } from "@/components/escrow/EscrowCreateFormResult";
 import ShareModal from "@/components/escrow/ShareModal";
 import { createEscrow, type EscrowInput } from "@/lib/api";
+import { downloadQrCode } from "@/lib/utils/downloadQrCode";
 import { EscrowCreateSchema, type EscrowCreateValues, shippingOptions } from "@/lib/validations";
 
 export interface EscrowCreateFormProps {
@@ -30,7 +31,7 @@ export default function EscrowCreateForm({ onSuccess, className = "", initialVal
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const submittingRef = useRef(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const qrRef = useRef<HTMLDivElement>(null);
 
   const updateField = <K extends keyof EscrowCreateValues>(field: K, value: EscrowCreateValues[K]): void => {
     setValues((current) => ({ ...current, [field]: value }));
@@ -44,8 +45,12 @@ export default function EscrowCreateForm({ onSuccess, className = "", initialVal
   };
 
   const downloadQR = async (): Promise<void> => {
-    if (!canvasRef.current || !resultUrl) return;
-    toast.success("QR code downloaded");
+    try {
+      await downloadQrCode(qrRef.current?.querySelector("svg"), "escrow-qr.png");
+      toast.success("QR code downloaded");
+    } catch {
+      toast.error("Could not download QR code. Please try again.");
+    }
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -100,7 +105,7 @@ export default function EscrowCreateForm({ onSuccess, className = "", initialVal
           {isSubmitting ? "Creating link..." : "Create escrow link"}
         </button>
       </form>
-      {resultUrl ? <EscrowCreateFormResult resultUrl={resultUrl} copyStatus={copyStatus} onCopy={copyResultUrl} onDownloadQR={downloadQR} canvasRef={canvasRef} /> : null}
+      {resultUrl ? <EscrowCreateFormResult resultUrl={resultUrl} copyStatus={copyStatus} onCopy={copyResultUrl} onDownloadQR={downloadQR} qrRef={qrRef} /> : null}
       {resultUrl ? <ShareModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} url={resultUrl} /> : null}
     </div>
   );

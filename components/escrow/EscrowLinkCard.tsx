@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import FetchErrorState, {
   getFetchErrorMessage,
@@ -55,6 +55,7 @@ export default function EscrowLinkCard({
   onCopySuccess,
   onCopyError,
 }: EscrowLinkCardProps) {
+  const qrRef = useRef<HTMLDivElement>(null);
   const [link, setLink] = useState<{
     title: string;
     status: string;
@@ -179,8 +180,9 @@ export default function EscrowLinkCard({
         errorMsg={errorMsg}
         onCopy={handleCopy}
         onNativeShare={handleNativeShare}
+        qrRef={qrRef}
       />
-      <EscrowLinkQRCode url={link.url} />
+      <EscrowLinkQRCode url={link.url} qrRef={qrRef} />
     </div>
   );
 }

@@ -12,7 +12,7 @@ interface EscrowCreateFormResultProps {
   copyStatus: string | null;
   onCopy: () => void;
   onDownloadQR: () => void;
-  canvasRef: RefObject<HTMLCanvasElement | null>;
+  qrRef: RefObject<HTMLDivElement | null>;
 }
 
 /** Post-submission card exposing the shareable escrow link, QR code, and share actions. */
@@ -21,7 +21,7 @@ export function EscrowCreateFormResult({
   copyStatus,
   onCopy,
   onDownloadQR,
-  canvasRef,
+  qrRef,
 }: EscrowCreateFormResultProps) {
   return (
     <section
@@ -82,8 +82,9 @@ export function EscrowCreateFormResult({
       </div>
 
       <div className="mt-6 flex flex-col items-center gap-3">
-        <QrCode value={resultUrl} />
-        <canvas ref={canvasRef} className="sr-only" aria-hidden="true" />
+        <div ref={qrRef}>
+          <QrCode value={resultUrl} />
+        </div>
         <button
           type="button"
           onClick={onDownloadQR}
