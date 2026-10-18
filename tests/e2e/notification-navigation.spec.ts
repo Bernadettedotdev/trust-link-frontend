@@ -45,3 +45,16 @@ test("bell navigation closes the preview and renders the tracked order", async (
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("notifications.read") ?? "[]")))
     .toEqual(["notification-funded"]);
 });
+
+test("Enter on an inbox row follows its link and marks the notification read", async ({ page }) => {
+  await page.goto("/notifications");
+  const link = page.getByRole("link", { name: /Notification test order/ });
+  await expect(link).toHaveAttribute("href", `/track/${escrow.id}`);
+  await link.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(page).toHaveURL(`/track/${escrow.id}`);
+  await expect(page.getByRole("heading", { name: "Track Your Order" })).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("notifications.read") ?? "[]")))
+    .toEqual(["notification-funded"]);
+});

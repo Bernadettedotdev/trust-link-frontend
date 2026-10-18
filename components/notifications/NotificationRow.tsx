@@ -12,8 +12,7 @@ import {
   Truck,
 } from "lucide-react";
 import Link from "next/link";
-import type { JSX, KeyboardEvent } from "react";
-import { useCallback } from "react";
+import type { JSX } from "react";
 
 import { relativeTime, statusLabel } from "@/lib/notifications";
 import type { AppNotification, EscrowStatus } from "@/types";
@@ -52,23 +51,12 @@ interface NotificationRowProps {
   onRead: (id: string) => void;
 }
 
-/** Renders a keyboard-accessible notification link. */
+/** Uses native link activation: Enter follows the link; Space scrolls the page. */
 export function NotificationRow({ n, onRead }: NotificationRowProps) {
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLAnchorElement>) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        onRead(n.id);
-      }
-    },
-    [n.id, onRead]
-  );
-
   return (
     <Link
       href={`/track/${n.escrowId}`}
       onClick={() => onRead(n.id)}
-      onKeyDown={handleKeyDown}
       tabIndex={0}
       role="link"
       className={`group flex items-start gap-4 rounded-2xl border p-4 transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:focus-visible:outline-white ${
