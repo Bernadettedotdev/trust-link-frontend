@@ -57,9 +57,8 @@ export default function EscrowLinkShareButtons({
         await track("link_shared", { platform: "whatsapp", method: "native" });
         return;
       } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          console.error("Share failed:", err);
-        }
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.error("Share failed:", err);
       }
     }
 
@@ -79,9 +78,8 @@ export default function EscrowLinkShareButtons({
         await track("link_shared", { platform: "instagram", method: "native" });
         return;
       } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          console.error("Share failed:", err);
-        }
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.error("Share failed:", err);
       }
     }
 
