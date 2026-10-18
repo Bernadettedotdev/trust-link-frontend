@@ -60,7 +60,19 @@ vi.mock("@/lib/explorer", () => ({
 }));
 
 vi.mock("@/components/providers/NetworkProvider", () => ({
-  useNetwork: vi.fn(() => ({ network: "testnet", isTestnet: true, isMainnet: false, toggleNetwork: vi.fn(), setNetwork: vi.fn() })),
+  useNetwork: vi.fn(() => ({
+    network: "testnet",
+    isTestnet: true,
+    isMainnet: false,
+    toggleNetwork: vi.fn(),
+    setNetwork: vi.fn(),
+    config: {
+      rpcUrl: "https://soroban-testnet.stellar.org",
+      networkPassphrase: "Test SDF Network ; September 2015",
+      horizonUrl: "https://horizon-testnet.stellar.org",
+      stellarExpertPrefix: "testnet",
+    },
+  })),
   NetworkProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
