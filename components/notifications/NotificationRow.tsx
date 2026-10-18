@@ -66,7 +66,7 @@ export function NotificationRow({ n, onRead }: NotificationRowProps) {
 
   return (
     <Link
-      href={`/escrow/${n.escrowId}`}
+      href={`/track/${n.escrowId}`}
       onClick={() => onRead(n.id)}
       onKeyDown={handleKeyDown}
       tabIndex={0}

@@ -127,8 +127,8 @@ describe("NotificationBell", () => {
       render(<NotificationBell />);
       await user.click(getToggleButton());
       const links = within(screen.getByRole("dialog", { name: "Notifications" })).getAllByRole("link");
-      // 5 preview items + "View all notifications" = 6 links; filter escrow links
-      const escrowLinks = links.filter((l) => l.getAttribute("href")?.startsWith("/escrow/"));
+      // 5 preview items + "View all notifications" = 6 links; filter tracking links
+      const escrowLinks = links.filter((l) => l.getAttribute("href")?.startsWith("/track/"));
       expect(escrowLinks).toHaveLength(5);
     });
 
@@ -248,9 +248,10 @@ describe("NotificationBell", () => {
       await user.click(getToggleButton());
 
       const dialog = screen.getByRole("dialog", { name: "Notifications" });
-      const firstLink = within(dialog).getAllByRole("link").find((l) => l.getAttribute("href") === "/escrow/escrow-1")!;
+      const firstLink = within(dialog).getAllByRole("link").find((l) => l.getAttribute("href") === "/track/escrow-1")!;
       await user.click(firstLink);
 
+      expect(mockMarkAsRead).toHaveBeenCalledTimes(1);
       expect(mockMarkAsRead).toHaveBeenCalledWith("n1");
       expect(screen.queryByRole("dialog", { name: "Notifications" })).not.toBeInTheDocument();
     });

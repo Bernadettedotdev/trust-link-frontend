@@ -56,6 +56,7 @@ function makeNotification(
 
 describe("NotificationsPageContent", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mockNotifications.length = 0;
     mockState.isLoading = false;
     window.localStorage.clear();
@@ -163,7 +164,7 @@ describe("NotificationsPageContent", () => {
     expect(screen.getByText("Widget")).toBeInTheDocument();
   });
 
-  it("calls markAsRead when a notification row is clicked", async () => {
+  it("links inbox rows to order tracking and marks read once on click", async () => {
     window.localStorage.setItem("wallet.jwt", "valid-token");
     mockNotifications.push(
       makeNotification("notif-1", { escrowItem: "Test Item" })
@@ -173,7 +174,10 @@ describe("NotificationsPageContent", () => {
       expect(screen.getByText("Test Item")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Test Item"));
+    const link = screen.getByRole("link", { name: /Test Item/ });
+    expect(link).toHaveAttribute("href", "/track/escrow-notif-1");
+    fireEvent.click(link);
+    expect(mockMarkAsRead).toHaveBeenCalledTimes(1);
     expect(mockMarkAsRead).toHaveBeenCalledWith("notif-1");
   });
 

@@ -128,7 +128,7 @@ export default function NotificationBell() {
                 // can never produce duplicate React keys or console warnings.
                 <li key={`${n.id}-${index}`}>
                   <Link
-                    href={`/escrow/${n.escrowId}`}
+                    href={`/track/${n.escrowId}`}
                     onClick={() => {
                       markAsRead(n.id);
                       setOpen(false);

@@ -66,14 +66,18 @@ describe("NotificationBell", () => {
     consoleError.mockRestore();
   });
 
-  it("marks a notification as read when its link is clicked", () => {
+  it("links to order tracking, marks read once, and closes the preview", () => {
     mockNotifications.push(makeNotification("notif-1", 0));
 
     render(<NotificationBell />);
     fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
 
-    fireEvent.click(screen.getByRole("link", { name: /Item 0/i }));
+    const link = screen.getByRole("link", { name: /Item 0/i });
+    expect(link).toHaveAttribute("href", "/track/escrow-0");
+    fireEvent.click(link);
+    expect(mockMarkAsRead).toHaveBeenCalledTimes(1);
     expect(mockMarkAsRead).toHaveBeenCalledWith("notif-1");
     expect(mockMarkAllAsRead).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
